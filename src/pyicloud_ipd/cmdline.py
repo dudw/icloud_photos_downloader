@@ -4,19 +4,28 @@ A Command Line Wrapper to allow easy use of pyicloud for
 command line scripts, and related.
 """
 import argparse
+import getpass
 import pickle
 import sys
+from typing import NoReturn, Optional, Sequence
+
+import click
 
 from click import confirm
 
-from pyicloud_ipd import PyiCloudService
+import foundation
+from foundation.core import identity
+from pyicloud_ipd.base import PyiCloudService
 from pyicloud_ipd.exceptions import PyiCloudFailedLoginException
+from pyicloud_ipd.file_match import FileMatchPolicy
+from pyicloud_ipd.raw_policy import RawTreatmentPolicy
+from pyicloud_ipd.services.findmyiphone import AppleDevice
 from . import utils
 
 DEVICE_ERROR = "Please use the --device switch to indicate which device to use."
 
 
-def create_pickled_data(idevice, filename):
+def create_pickled_data(idevice: AppleDevice, filename: str) -> None:
     """
     This helper will output the idevice to a pickled file named
     after the passed filename.
@@ -27,8 +36,52 @@ def create_pickled_data(idevice, filename):
     with open(filename, "wb") as pickle_file:
         pickle.dump(idevice.content, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
 
+def report_version(ctx: click.Context, _param: click.Parameter, value: bool) -> bool:
+    if not value:
+        return value
+    vi = foundation.version_info_formatted()
+    click.echo(vi)
+    ctx.exit()
 
-def main(args=None):
+CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
+
+@click.command(context_settings=CONTEXT_SETTINGS, options_metavar="<options>")
+@click.option("--username", default="", help="Apple ID to Use")
+@click.option(
+    "--password",
+    default="",
+    help=(
+        "Apple ID Password to Use; if unspecified, password will be "
+        "fetched from the system keyring."
+    ),
+)
+@click.option("-n", "--non-interactive", default=True, is_flag=True, help="Disable interactive prompts.")
+@click.option(
+    "--delete-from-keyring",
+    default=False,
+    is_flag=True,
+    help="Delete stored password in system keyring for this username.",
+)
+@click.option(
+    "--domain",
+    type=click.Choice(["com", "cn"]),
+    show_default=True,
+    default="com",
+    help="Root Domain for requests to iCloud (com or cn)",
+)
+@click.option(
+    "--version",
+    help="Show the version, commit hash and timestamp",
+    is_flag=True,
+    expose_value=False,
+    is_eager=True,
+    callback=report_version,
+)
+def main(username: str, password: str, non_interactive: bool, delete_from_keyring: bool, domain: str) -> None:
+    print("Running in MAIN")
+    main_aux()
+
+def main_aux(args:Optional[Sequence[str]]=None) -> NoReturn:
     """Main commandline entrypoint."""
     if args is None:
         args = sys.argv[1:]
@@ -174,36 +227,45 @@ def main(args=None):
 
     command_line = parser.parse_args(args)
 
-    username = command_line.username
-    password = command_line.password
+    username: Optional[str] = command_line.username.strip() or None
+    password: Optional[str] = command_line.password.strip() or None
     domain   = command_line.domain
 
-    if username and command_line.delete_from_keyring:
+    if username is not None and command_line.delete_from_keyring:
         utils.delete_password_in_keyring(username)
+        print("Password delete from keyring")
 
     failure_count = 0
     while True:
         # Which password we use is determined by your username, so we
         # do need to check for this first and separately.
-        if not username:
+        if username is None:
             parser.error("No username supplied")
 
-        if not password:
-            password = utils.get_password(
-                username, interactive=command_line.interactive
-            )
+        got_from_keyring = False
 
-        if not password:
+        if password is None:
+            password = utils.get_password_from_keyring(username)
+            got_from_keyring = password is not None
+
+        if password is None:
+            password = getpass.getpass(f'Enter iCloud password for {username}: ').strip() or None
+
+        if password is None:
             parser.error("No password supplied")
 
         try:
             api = PyiCloudService(
+                identity,
+                identity,
                 domain,
-                username.strip(),
-                password.strip(),
+                RawTreatmentPolicy.AS_IS,
+                FileMatchPolicy.NAME_SIZE_DEDUP_WITH_SUFFIX,
+                username,
+                password,
             )
             if (
-                not utils.password_exists_in_keyring(username)
+                not got_from_keyring
                 and command_line.interactive
                 and confirm("Save password in keyring?")
             ):
@@ -245,8 +307,8 @@ def main(args=None):
                     )
 
                 print("\nWhich device would you like to use?")
-                device = int(input("(number) --> "))
-                device = devices[device]
+                device_index = int(input("(number) --> "))
+                device = devices[device_index]
                 if not api.send_verification_code(device):
                     print("Failed to send verification code")
                     sys.exit(1)
