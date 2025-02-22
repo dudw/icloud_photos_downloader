@@ -1,29 +1,29 @@
-from unittest import TestCase
-import pytest
-from vcr import VCR
-from mock import patch
-from freezegun import freeze_time
-import os
-from click.testing import CliRunner
-from icloudpd.base import main
 import inspect
-import shutil
+import os
+from unittest import TestCase
+from unittest.mock import patch
 
+import pytest
+from click.testing import CliRunner
+from freezegun import freeze_time
+from vcr import VCR
+
+from icloudpd.base import main
 from tests.helpers import path_from_project_root, recreate_path
 
-vcr = VCR(decode_compressed_response=True)
+vcr = VCR(decode_compressed_response=True, record_mode="none")
 
 
 class EmailNotificationsTestCase(TestCase):
     @pytest.fixture(autouse=True)
-    def inject_fixtures(self, caplog):
+    def inject_fixtures(self, caplog: pytest.LogCaptureFixture) -> None:
         self._caplog = caplog
         self.root_path = path_from_project_root(__file__)
         self.fixtures_path = os.path.join(self.root_path, "fixtures")
         self.vcr_path = os.path.join(self.root_path, "vcr_cassettes")
 
     @freeze_time("2018-01-01")
-    def test_2sa_required_email_notification(self):
+    def test_2sa_required_email_notification(self) -> None:
         base_dir = os.path.join(self.fixtures_path, inspect.stack()[0][3])
         cookie_dir = os.path.join(base_dir, "cookie")
         data_dir = os.path.join(base_dir, "data")
@@ -34,9 +34,7 @@ class EmailNotificationsTestCase(TestCase):
         with vcr.use_cassette(os.path.join(self.vcr_path, "auth_requires_2fa.yml")):
             with patch("smtplib.SMTP") as smtp:
                 # Pass fixed client ID via environment variable
-                runner = CliRunner(env={
-                    "CLIENT_ID": "EC5646DE-9423-11E8-BF21-14109FE0B321"
-                })
+                runner = CliRunner(env={"CLIENT_ID": "EC5646DE-9423-11E8-BF21-14109FE0B321"})
                 result = runner.invoke(
                     main,
                     [
@@ -61,9 +59,7 @@ class EmailNotificationsTestCase(TestCase):
             smtp_instance = smtp()
             smtp_instance.connect.assert_called_once()
             smtp_instance.starttls.assert_called_once()
-            smtp_instance.login.assert_called_once_with(
-                "jdoe+smtp@gmail.com", "password1"
-            )
+            smtp_instance.login.assert_called_once_with("jdoe+smtp@gmail.com", "password1")
             smtp_instance.sendmail.assert_called_once_with(
                 "iCloud Photos Downloader <jdoe+smtp@gmail.com>",
                 "jdoe+notifications@gmail.com",
@@ -77,7 +73,7 @@ class EmailNotificationsTestCase(TestCase):
             )
 
     @freeze_time("2018-01-01")
-    def test_2sa_notification_without_smtp_login_and_tls(self):
+    def test_2sa_notification_without_smtp_login_and_tls(self) -> None:
         base_dir = os.path.join(self.fixtures_path, inspect.stack()[0][3])
         cookie_dir = os.path.join(base_dir, "cookie")
         data_dir = os.path.join(base_dir, "data")
@@ -88,9 +84,7 @@ class EmailNotificationsTestCase(TestCase):
         with vcr.use_cassette(os.path.join(self.vcr_path, "auth_requires_2fa.yml")):
             with patch("smtplib.SMTP") as smtp:
                 # Pass fixed client ID via environment variable
-                runner = CliRunner(env={
-                    "CLIENT_ID": "EC5646DE-9423-11E8-BF21-14109FE0B321"
-                })
+                runner = CliRunner(env={"CLIENT_ID": "EC5646DE-9423-11E8-BF21-14109FE0B321"})
                 result = runner.invoke(
                     main,
                     [
@@ -126,7 +120,7 @@ class EmailNotificationsTestCase(TestCase):
             )
 
     @freeze_time("2018-01-01")
-    def test_2sa_required_notification_script(self):
+    def test_2sa_required_notification_script(self) -> None:
         base_dir = os.path.join(self.fixtures_path, inspect.stack()[0][3])
         cookie_dir = os.path.join(base_dir, "cookie")
         data_dir = os.path.join(base_dir, "data")
@@ -137,9 +131,7 @@ class EmailNotificationsTestCase(TestCase):
         with vcr.use_cassette(os.path.join(self.vcr_path, "auth_requires_2fa.yml")):
             with patch("subprocess.call") as subprocess_patched:
                 # Pass fixed client ID via environment variable
-                runner = CliRunner(env={
-                    "CLIENT_ID": "EC5646DE-9423-11E8-BF21-14109FE0B321"
-                })
+                runner = CliRunner(env={"CLIENT_ID": "EC5646DE-9423-11E8-BF21-14109FE0B321"})
                 result = runner.invoke(
                     main,
                     [
@@ -160,7 +152,7 @@ class EmailNotificationsTestCase(TestCase):
             subprocess_patched.assert_called_once_with(["./test_script.sh"])
 
     @freeze_time("2018-01-01")
-    def test_2sa_required_email_notification_from(self):
+    def test_2sa_required_email_notification_from(self) -> None:
         base_dir = os.path.join(self.fixtures_path, inspect.stack()[0][3])
         cookie_dir = os.path.join(base_dir, "cookie")
         data_dir = os.path.join(base_dir, "data")
@@ -171,9 +163,7 @@ class EmailNotificationsTestCase(TestCase):
         with vcr.use_cassette(os.path.join(self.vcr_path, "auth_requires_2fa.yml")):
             with patch("smtplib.SMTP") as smtp:
                 # Pass fixed client ID via environment variable
-                runner = CliRunner(env={
-                    "CLIENT_ID": "EC5646DE-9423-11E8-BF21-14109FE0B321"
-                })
+                runner = CliRunner(env={"CLIENT_ID": "EC5646DE-9423-11E8-BF21-14109FE0B321"})
                 result = runner.invoke(
                     main,
                     [
@@ -200,9 +190,7 @@ class EmailNotificationsTestCase(TestCase):
             smtp_instance = smtp()
             smtp_instance.connect.assert_called_once()
             smtp_instance.starttls.assert_called_once()
-            smtp_instance.login.assert_called_once_with(
-                "jdoe+smtp@gmail.com", "password1"
-            )
+            smtp_instance.login.assert_called_once_with("jdoe+smtp@gmail.com", "password1")
             smtp_instance.sendmail.assert_called_once_with(
                 "JD <jdoe+notifications+from@gmail.com>",
                 "JD <jdoe+notifications@gmail.com>",
@@ -214,4 +202,3 @@ class EmailNotificationsTestCase(TestCase):
                 "Please log in to your server and run the script manually to update two-step "
                 "authentication.",
             )
-
