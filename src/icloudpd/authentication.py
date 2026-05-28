@@ -251,6 +251,15 @@ def request_2fa_web(
     icloud: PyiCloudService, logger: logging.Logger, status_exchange: StatusExchange
 ) -> None:
     """Request two-factor authentication through Webui."""
+    # Trigger push notification to trusted devices before prompting for code.
+    # Apple's auth flow (2026+) requires a PUT to /verify/trusteddevice/securitycode
+    # to initiate code delivery. Failure is non-fatal — the user can still enter
+    # a code if it arrives via another path.
+    if not icloud.trigger_push_notification():
+        logger.debug("Failed to trigger 2FA push notification, continuing anyway")
+    else:
+        logger.debug("2FA push notification triggered")
+
     if not status_exchange.replace_status(Status.NO_INPUT_NEEDED, Status.NEED_MFA):
         raise PyiCloudFailedMFAException(
             f"Expected NO_INPUT_NEEDED, but got {status_exchange.get_status()}"
